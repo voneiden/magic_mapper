@@ -48,3 +48,27 @@ class MagicTestCase(unittest.TestCase):
         }
         result = magic_map(schema, test_source_data)
         self.assertEqual({'devices': [{'name': 'd1'}, {'name': 'd2'}]}, result)
+
+    def test_list_reduce(self):
+        test_source_data = {
+            'devices': [
+                {
+                    'name': 'notinterested',
+                    'data': [
+                        {'value': 1}
+                    ]
+                },
+                {
+                    'name': 'notinterested2',
+                    'data': [
+                        {'value': 2}
+                    ]
+                }
+            ]
+        }
+
+        schema = {
+            'values': List('devices', reduce=(lambda x, y: x + [v['value'] for v in y['data']], lambda: []))
+        }
+        result = magic_map(schema, test_source_data)
+        self.assertEqual({'values': [1, 2]}, result)

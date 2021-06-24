@@ -1,4 +1,20 @@
+import functools
 from dataclasses import dataclass, field
+from typing import Callable, Any
+
+
+class empty:
+    pass
+
+
+class StopChain(Exception):
+    def __init__(self, final_value):
+        super().__init__(final_value)
+        self.final_value = final_value
+
+
+class ListValidationError(Exception):
+    pass
 
 
 @dataclass
@@ -14,6 +30,9 @@ class Chain:
         for i, link in enumerate(self.chain):
             try:
                 resolved_data = link.resolve(resolved_data, variables)
+            except StopChain as ex:
+                return ex.final_value
+
             except Exception as ex:
                 print(f"MagicChain failed to resolve at {'->'.join([repr(_link) for _link in self.chain[0:i+1]])}")
                 raise ex
@@ -24,6 +43,7 @@ class Chain:
 class Value:
     """ Magic Object, serves also as a base class """
     key: str
+    default: Any = field(default_factory=lambda: empty)
 
     def __new__(cls, *args, **kwargs):
         obj = super(Value, cls).__new__(cls)
@@ -32,15 +52,14 @@ class Value:
 
         return Chain(chain=[obj])
 
-    #def __rshift__(self, other):
-    #    return MagicChain(chain=[self, other])
-
     def resolve(self, o, _):
-        return o[self.key]
+        v = o.get(self.key, self.default)
+        if v is None:
+            raise StopChain(None)
+        if v == empty:
+            raise KeyError(self.key)
+        return v
 
-
-class ListValidationError(Exception):
-    pass
 
 
 @dataclass
@@ -51,6 +70,7 @@ class List:
     index: int = None
     min_length: int = None
     max_length: int = None
+    reduce: tuple[Callable, Callable] = None
 
     def __new__(cls, *args, **kwargs):
         obj = super(List, cls).__new__(cls)
@@ -64,9 +84,14 @@ class List:
         if self.cast and not isinstance(v, list):
             v = [v]
         if self.max_length is not None and len(v) > self.max_length:
-            raise ListValidationError("List violates max_length")
+            raise ListValidationError(f"List ({self.key}) violates max_length ({len(v)})")
         if self.min_length is not None and  len(v) < self.min_length:
-            raise ListValidationError("List violates min_length")
+            raise ListValidationError(f"List ({self.key}) violates min_length")
+
+        if self.reduce is not None:
+            f, default_factory = self.reduce
+            v = functools.reduce(f, v, default_factory())
+
         if self.index is not None:
             return v[self.index]
 
