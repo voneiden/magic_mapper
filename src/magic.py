@@ -22,8 +22,7 @@ class Chain:
     chain: list = field(default_factory=list)
 
     def __rshift__(self, other):
-        self.chain += other.chain
-        return self
+        return Chain(chain=self.chain + other.chain)
 
     def resolve(self, source_data, variables):
         resolved_data = source_data
@@ -57,10 +56,8 @@ class Value:
         if v is None:
             raise StopChain(None)
         if v == empty:
-            raise KeyError(self.key)
+            raise KeyError(f'{self.key} (available {o.items()})')
         return v
-
-
 
 @dataclass
 class List:
@@ -71,6 +68,8 @@ class List:
     min_length: int = None
     max_length: int = None
     reduce: tuple[Callable, Callable] = None
+    filter: Callable = None
+    default: Any = field(default_factory=lambda: empty)
 
     def __new__(cls, *args, **kwargs):
         obj = super(List, cls).__new__(cls)
@@ -80,7 +79,9 @@ class List:
         return Chain(chain=[obj])
 
     def resolve(self, source_data, _):
-        v = source_data[self.key]
+        v = source_data.get(self.key, self.default)
+        if v is None:
+            raise StopChain(None)
         if self.cast and not isinstance(v, list):
             v = [v]
         if self.max_length is not None and len(v) > self.max_length:
@@ -91,6 +92,9 @@ class List:
         if self.reduce is not None:
             f, default_factory = self.reduce
             v = functools.reduce(f, v, default_factory())
+
+        if self.filter is not None:
+            v = list(filter(self.filter, v))
 
         if self.index is not None:
             return v[self.index]
