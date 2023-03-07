@@ -1,8 +1,8 @@
-name: Publish to TestPyPI
+name: CI
 
 on:
-  push:
-    branches: [master]
+  pull_request:
+    branches: [ master ]
 
 jobs:
   build-and-publish:
@@ -14,6 +14,8 @@ jobs:
         with:
           python-version: 3.11
           cache: 'pip'
+      - name: Test
+        run: python -m unittest
       - name: Install dependencies
         run: pip install -U setuptools wheel build
       - name: Build
@@ -21,7 +23,5 @@ jobs:
       - name: Publish
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
-          repository_url: https://test.pypi.org/legacy/
-          skip_existing: true
+          password: ${{ secrets.PYPI_API_TOKEN }}
           verbose: true
