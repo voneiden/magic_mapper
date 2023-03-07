@@ -1,4 +1,5 @@
 import functools
+from abc import ABC
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
@@ -17,33 +18,30 @@ class ListValidationError(Exception):
     pass
 
 
-class Chainable:
-    def __new__(cls, *args, **kwargs):
-        obj = super().__new__(cls)
+class ChainLink(ABC):
+    def to_chain(self):
+        return Chain(chain=[self])
 
-        # Initialize the object already here, so we don't need
-        # to worry about it in Chain initialization
-        # noinspection PyArgumentList
-        obj.__init__(*args, **kwargs)
-
-        return Chain(chain=[obj])
-
-    def resolve(self, source_data, variables):
+    def resolve_link(self, source_data, variables):
         raise NotImplementedError
 
 
-@dataclass
-class Chain:
-    chain: list = field(default_factory=list)
-
+class Chainable:
     def __rshift__(self, other):
-        return Chain(chain=self.chain + other.chain)
+        self_links = self.chain if hasattr(self, "chain") else [self]
+        other_links = other.chain if hasattr(other, "chain") else [other]
+        return Chain(chain=self_links + other_links)
+
+
+@dataclass
+class Chain(Chainable):
+    chain: list = field(default_factory=list)
 
     def resolve(self, source_data, variables):
         resolved_data = source_data
         for i, link in enumerate(self.chain):
             try:
-                resolved_data = link.resolve(resolved_data, variables)
+                resolved_data = link.resolve_link(resolved_data, variables)
             except StopChain as ex:
                 return ex.final_value
 
@@ -54,14 +52,15 @@ class Chain:
                 raise ex
         return resolved_data
 
+
 @dataclass
-class Value(Chainable):
+class Value(Chainable, ChainLink):
     """Magic Object, serves also as a base class"""
 
     key: str
     default: Any = field(default_factory=lambda: empty)
 
-    def resolve(self, o, _):
+    def resolve_link(self, o, _):
         v = o.get(self.key, self.default)
         if v is None:
             raise StopChain(None)
@@ -71,7 +70,7 @@ class Value(Chainable):
 
 
 @dataclass
-class List(Chainable):
+class List(Chainable, ChainLink):
     """Magic List"""
 
     key: str
@@ -83,7 +82,7 @@ class List(Chainable):
     filter: Callable = None
     default: Any = field(default_factory=lambda: empty)
 
-    def resolve(self, source_data, _):
+    def resolve_link(self, source_data, _):
         v = source_data.get(self.key, self.default)
         if v is None:
             raise StopChain(None)
@@ -110,19 +109,19 @@ class List(Chainable):
 
 
 @dataclass
-class Variable(Chainable):
+class Variable(Chainable, ChainLink):
     name: str
 
-    def resolve(self, source_data, variables):
-        return variables[self.name].resolve(source_data, variables)
+    def resolve_link(self, source_data, variables):
+        return variables[self.name].resolve_link(source_data, variables)
 
 
 @dataclass
-class Schema(Chainable):
+class Schema(Chainable, ChainLink):
     schema: [dict, list]
     variables: dict = None
 
-    def resolve(self, source_data, variables):
+    def resolve_link(self, source_data, variables):
         def _magic_map(_source_data):
             return magic_map(
                 self.schema,
@@ -145,3 +144,7 @@ def magic_map(schema, source_data, variables: dict = None):
         return [magic_map(v, source_data, variables) for v in schema]
     elif isinstance(schema, Chain):
         return schema.resolve(source_data, variables=variables)
+    elif isinstance(schema, ChainLink):
+        return schema.to_chain().resolve(source_data, variables=variables)
+
+    raise ValueError(f"Unknown schema type {type(schema)}")
