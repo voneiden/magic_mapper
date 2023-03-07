@@ -1,6 +1,6 @@
 import functools
 from dataclasses import dataclass, field
-from typing import Callable, Any
+from typing import Any, Callable
 
 
 class empty:
@@ -33,14 +33,17 @@ class Chain:
                 return ex.final_value
 
             except Exception as ex:
-                print(f"MagicChain failed to resolve at {'->'.join([repr(_link) for _link in self.chain[0:i + 1]])}")
+                print(
+                    f"MagicChain failed to resolve at {'->'.join([repr(_link) for _link in self.chain[0:i + 1]])}"
+                )
                 raise ex
         return resolved_data
 
 
 @dataclass
 class Value:
-    """ Magic Object, serves also as a base class """
+    """Magic Object, serves also as a base class"""
+
     key: str
     default: Any = field(default_factory=lambda: empty)
 
@@ -56,13 +59,14 @@ class Value:
         if v is None:
             raise StopChain(None)
         if v == empty:
-            raise KeyError(f'{self.key} (available {o.items()})')
+            raise KeyError(f"{self.key} (available {o.items()})")
         return v
 
 
 @dataclass
 class List:
-    """ Magic List """
+    """Magic List"""
+
     key: str
     cast: bool = False
     index: int = None
@@ -86,7 +90,9 @@ class List:
         if self.cast and not isinstance(v, list):
             v = [v]
         if self.max_length is not None and len(v) > self.max_length:
-            raise ListValidationError(f"List ({self.key}) violates max_length ({len(v)})")
+            raise ListValidationError(
+                f"List ({self.key}) violates max_length ({len(v)})"
+            )
         if self.min_length is not None and len(v) < self.min_length:
             raise ListValidationError(f"List ({self.key}) violates min_length")
 
@@ -132,7 +138,11 @@ class Schema:
 
     def resolve(self, source_data, variables):
         def _magic_map(_source_data):
-            return magic_map(self.schema, _source_data, {**variables, **(self.variables if self.variables else {})})
+            return magic_map(
+                self.schema,
+                _source_data,
+                {**variables, **(self.variables if self.variables else {})},
+            )
 
         if isinstance(source_data, list):
             return [_magic_map(_source_data) for _source_data in source_data]
