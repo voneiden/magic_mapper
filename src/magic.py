@@ -17,6 +17,21 @@ class ListValidationError(Exception):
     pass
 
 
+class Chainable:
+    def __new__(cls, *args, **kwargs):
+        obj = super().__new__(cls)
+
+        # Initialize the object already here, so we don't need
+        # to worry about it in Chain initialization
+        # noinspection PyArgumentList
+        obj.__init__(*args, **kwargs)
+
+        return Chain(chain=[obj])
+
+    def resolve(self, source_data, variables):
+        raise NotImplementedError
+
+
 @dataclass
 class Chain:
     chain: list = field(default_factory=list)
@@ -34,25 +49,17 @@ class Chain:
 
             except Exception as ex:
                 print(
-                    f"MagicChain failed to resolve at {'->'.join([repr(_link) for _link in self.chain[0:i + 1]])}"
+                    f"Chain failed to resolve at {'->'.join([repr(_link) for _link in self.chain[0:i + 1]])}"
                 )
                 raise ex
         return resolved_data
 
-
 @dataclass
-class Value:
+class Value(Chainable):
     """Magic Object, serves also as a base class"""
 
     key: str
     default: Any = field(default_factory=lambda: empty)
-
-    def __new__(cls, *args, **kwargs):
-        obj = super(Value, cls).__new__(cls)
-        # noinspection PyArgumentList
-        obj.__init__(*args, **kwargs)
-
-        return Chain(chain=[obj])
 
     def resolve(self, o, _):
         v = o.get(self.key, self.default)
@@ -64,7 +71,7 @@ class Value:
 
 
 @dataclass
-class List:
+class List(Chainable):
     """Magic List"""
 
     key: str
@@ -75,13 +82,6 @@ class List:
     reduce: tuple[Callable, Callable] = None
     filter: Callable = None
     default: Any = field(default_factory=lambda: empty)
-
-    def __new__(cls, *args, **kwargs):
-        obj = super(List, cls).__new__(cls)
-        # noinspection PyArgumentList
-        obj.__init__(*args, **kwargs)
-
-        return Chain(chain=[obj])
 
     def resolve(self, source_data, _):
         v = source_data.get(self.key, self.default)
@@ -110,31 +110,17 @@ class List:
 
 
 @dataclass
-class Variable:
+class Variable(Chainable):
     name: str
-
-    def __new__(cls, *args, **kwargs):
-        obj = super(Variable, cls).__new__(cls)
-        # noinspection PyArgumentList
-        obj.__init__(*args, **kwargs)
-
-        return Chain(chain=[obj])
 
     def resolve(self, source_data, variables):
         return variables[self.name].resolve(source_data, variables)
 
 
 @dataclass
-class Schema:
+class Schema(Chainable):
     schema: [dict, list]
     variables: dict = None
-
-    def __new__(cls, *args, **kwargs):
-        obj = super(Schema, cls).__new__(cls)
-        # noinspection PyArgumentList
-        obj.__init__(*args, **kwargs)
-
-        return Chain(chain=[obj])
 
     def resolve(self, source_data, variables):
         def _magic_map(_source_data):
