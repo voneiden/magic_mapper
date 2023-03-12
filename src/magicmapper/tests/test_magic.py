@@ -1,6 +1,6 @@
 import unittest
 
-from src.magicmapper import Schema, Value, magic_map, Variable, List
+from ..magicmapper import Schema, Value, magic_map, Variable, List
 
 
 class MagicTestCase(unittest.TestCase):
