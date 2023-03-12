@@ -1,6 +1,7 @@
 [build-system]
 requires = [
-    "setuptools>=42",
+    "setuptools>=45",
+    "setuptools_scm[toml]>=6.2",
     "wheel",
     "setuptools-git-versioning<2"
 ]
@@ -22,10 +23,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent"
 ]
-dependencies = [
-    "requests",
-    'importlib-metadata; python_version<"3.8"',
-]
 dynamic = ["version"]
 [tool.setuptools-git-versioning]
 enabled = true
+dev_template = "{tag}.post{ccount}"
